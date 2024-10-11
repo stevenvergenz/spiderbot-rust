@@ -1,0 +1,22 @@
+[package]
+name = "robot-impl"
+edition = "2021"
+[lib]
+test = false
+bench = false
+
+[[bin]]
+name = "robot-impl"
+test = false
+bench = false
+
+[dependencies]
+robot-core = { path = "../robot-core" }
+panic-halt = { workspace = true }
+ufmt = { workspace = true }
+nb = { workspace = true }
+embedded-hal = { workspace = true }
+arduino-hal = { workspace = true }
+
+[build-dependencies]
+proc-macro2 = { workspace = true }

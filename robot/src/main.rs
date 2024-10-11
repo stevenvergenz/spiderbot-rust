@@ -3,11 +3,10 @@
 
 use panic_halt as _;
 
-use robot_core::Robot;
-use robot_impl::SpiderBot;
+use robot::SpiderBot;
 
 #[arduino_hal::entry]
 fn main() -> ! {
     let mut robot = SpiderBot::new();
-    robot.exec()
+    robot.exec(20)
 }

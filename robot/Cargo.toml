@@ -1,12 +1,14 @@
 [package]
-name = "robot-impl"
+name = "robot"
+version = "0.1.0"
 edition = "2021"
+
 [lib]
 test = false
 bench = false
 
 [[bin]]
-name = "robot-impl"
+name = "robot"
 test = false
 bench = false
 
@@ -17,6 +19,7 @@ ufmt = { workspace = true }
 nb = { workspace = true }
 embedded-hal = { workspace = true }
 arduino-hal = { workspace = true }
+avr-device = { workspace = true }
 
 [build-dependencies]
 proc-macro2 = { workspace = true }

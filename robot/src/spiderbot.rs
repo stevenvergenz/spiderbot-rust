@@ -7,11 +7,15 @@ use arduino_hal::{
     },
     prelude::*
 };
-use crate::millis::{millis, millis_init};
+use crate::{
+    led::Led,
+    millis::{millis, millis_init},
+};
 
 pub struct SpiderBot {
-    clock_pin: TC0,
     serial: arduino_hal::Usart<USART0, Pin<Input, PD0>, Pin<Output, PD1>>,
+    clock_pin: TC0,
+    led: Led,
 }
 
 impl SpiderBot {
@@ -21,8 +25,9 @@ impl SpiderBot {
         let serial = arduino_hal::default_serial!(dp, pins, 57600);
 
         Self {
-            clock_pin: dp.TC0,
             serial,
+            clock_pin: dp.TC0,
+            led: Led::new(pins.d13.into_output())
         }
     }
 
@@ -37,7 +42,7 @@ impl SpiderBot {
         loop {
             let time_start = millis();
 
-            self.tick();
+            self.tick(time_start);
 
             let runtime = millis() - time_start;
             if runtime < time_budget {
@@ -48,7 +53,7 @@ impl SpiderBot {
         }
     }
 
-    fn tick(&mut self) {
-
+    fn tick(&mut self, clock: usize) {
+        self.led.tick(clock);
     }
 }

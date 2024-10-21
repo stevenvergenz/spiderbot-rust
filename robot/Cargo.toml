@@ -13,7 +13,6 @@ test = false
 bench = false
 
 [dependencies]
-robot-core = { path = "../robot-core" }
 panic-halt = { workspace = true }
 ufmt = { workspace = true }
 nb = { workspace = true }

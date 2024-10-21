@@ -10,12 +10,14 @@ use arduino_hal::{
 use crate::{
     led::Led,
     millis::{millis, millis_init},
+    command::{Command, CommandState, blink::BlinkCommand},
 };
 
 pub struct SpiderBot {
     serial: arduino_hal::Usart<USART0, Pin<Input, PD0>, Pin<Output, PD1>>,
     clock_pin: TC0,
     led: Led,
+    state: CommandState<'static>,
 }
 
 impl SpiderBot {
@@ -27,8 +29,16 @@ impl SpiderBot {
         Self {
             serial,
             clock_pin: dp.TC0,
-            led: Led::new(pins.d13.into_output())
+            led: Led::new(pins.d13.into_output()),
+            state: CommandState::Disabled,
         }
+    }
+
+    pub fn led(&self) -> &Led {
+        &self.led
+    }
+    pub fn led_mut(&mut self) -> &mut Led {
+        &mut self.led
     }
 
     pub fn exec(&mut self, freq_hz: usize) -> ! {
@@ -47,8 +57,12 @@ impl SpiderBot {
             let runtime = millis() - time_start;
             if runtime < time_budget {
                 let delay = time_budget - runtime;
-                ufmt::uwriteln!(self.serial, "Waiting {}ms", delay).unwrap_infallible();
-                arduino_hal::delay_ms((time_budget - runtime) as u16);
+                //ufmt::uwriteln!(self.serial, "Waiting {}ms", delay).unwrap_infallible();
+                arduino_hal::delay_ms(delay as u16);
+            }
+            else {
+                ufmt::uwriteln!(self.serial,"Overrun! Expected {}ms, took {}ms", runtime, time_budget)
+                    .unwrap_infallible();
             }
         }
     }

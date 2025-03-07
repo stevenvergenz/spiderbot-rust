@@ -11,12 +11,14 @@ use crate::{
     led::Led,
     millis::{millis, millis_init},
     command::{Command, CommandState, blink::BlinkCommand},
+    subsystem::{Subsystem, onboard_leds_buttons::OnboardLedsButtons},
 };
 
 pub struct SpiderBot {
     serial: arduino_hal::Usart<USART0, Pin<Input, PD0>, Pin<Output, PD1>>,
     clock_pin: TC0,
     led: Led,
+    leds_buttons: OnboardLedsButtons,
     state: CommandState<'static>,
 }
 
@@ -30,6 +32,7 @@ impl SpiderBot {
             serial,
             clock_pin: dp.TC0,
             led: Led::new(pins.d13.into_output()),
+            leds_buttons: OnboardLedsButtons::new(pins.d7.into_output(), pins.d8.into_output()),
             state: CommandState::Disabled,
         }
     }
@@ -69,5 +72,10 @@ impl SpiderBot {
 
     fn tick(&mut self, clock: usize) {
         self.led.tick(clock);
+        self.leds_buttons.tick(clock);
+
+        if self.leds_buttons.button_a().is_pressed() {
+            self.leds_buttons.led_red_mut().toggle();
+        }
     }
 }

@@ -1,8 +1,9 @@
 [build]
-target = "avr-unknown-gnu-atmega328"
+target = "avr-none"
+rustflags = ["-C", "target-cpu=atmega328"]
 
 [unstable]
 build-std = ["core"]
 
 [target.'cfg(target_arch = "avr")']
-runner = "ravedude uno --open-console --baudrate 57600"
+runner = "ravedude duemilanove --open-console --baudrate 57600 --port /dev/ttyUSB0"

@@ -1,5 +1,5 @@
 [toolchain]
 channel = "nightly"
 components = ["rust-src"]
-targets = ["avr-unknown-gnu-atmega328"]
+targets = ["avr-none"]
 profile = "minimal"

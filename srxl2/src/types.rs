@@ -122,6 +122,124 @@ pub mod bind {
         Dsmr11ms22ms        = 0xE2,
         Dsmr5p5ms           = 0xE4,
     }
+
+}
+
+/// 7.4 Parameter Configuration
+pub mod param {
+    pub const ID: u8 = 0x50;
+    pub mod req {
+        pub const QUERY: u8 = 0x50;
+        pub const WRITE: u8 = 0x57;
+    }
+}
+
+/// 7.5 Signal Quality Packet
+pub mod rssi {
+    pub const ID: u8 = 0x55;
+    pub mod req {
+        pub const REQUEST: u8 = 0x52;
+        pub const SEND: u8 = 0x53;
+    }
+}
+
+/// 7.6 Telemetry Sensor Data Packet
+pub const TELEM_ID: u8 = 0x80;
+
+/// 7.7 Control Data Packet
+pub mod ctrl {
+    pub const ID: u8 = 0xCD;
+    // header + cmd/replyID + crc
+    pub const BASE_LENGTH: u8 = 3 + 2 + 2;
+
+    pub mod cmd {
+        pub const CHANNEL: u8 = 0x00;
+        pub const CHANNEL_FS: u8 = 0x01;
+        pub const VTX: u8 = 0x02;
+        pub const FWDPGM: u8 = 0x03;
+    }
+}
+
+/// X.X Spektrum Internal Use
+pub const SPM_INTERNAL: u8 = 0x99;
+
+pub enum Cmd {
+    None,
+    Channel,
+    ChannelFs,
+    Vtx,
+    FwdPgm,
+    Rssi,
+    Handshake,
+    Telemtry,
+    EnterBind,
+    ReqBindInfo,
+    SetBind,
+    BindInfo,
+    Internal,
+}
+
+pub mod vtx {
+    pub mod band {
+        pub const FATSHARK: u8 = 0;
+        pub const RACEBAND: u8 = 1;
+        pub const E_BAND: u8 = 2;
+        pub const B_BAND: u8 = 3;
+        pub const A_BAND: u8 = 4;
+    }
+
+    pub mod mode {
+        pub const RACE: u8 = 0;
+        pub const PIT: u8 = 1;
+    }
+
+    pub mod power {
+        pub const OFF: u8 = 0;
+        pub const P_1MW_14MW: u8 = 1;
+        pub const P_15MW_25MW: u8 = 2;
+        pub const P_26MW_99MW: u8 = 3;
+        pub const P_100MW_299MW: u8 = 4;
+        pub const P_300MW_600MW: u8 = 5;
+        pub const P_601_PLUS: u8 = 6;
+        pub const MANUAL: u8 = 7;
+    }
+
+    pub mod region {
+        pub const US: u8 = 0;
+        pub const EU: u8 = 1;
+    }
+}
+
+pub const FWD_PGM_MAX_DATA_SIZE: u8 = 64;
+
+/// Spektrum SRXL header
+#[repr(packed)]
+pub struct Header {
+    /// Always 0xKA6 for SRXL2
+    pub srxl_id: u8,
+    pub packet_type: u8,
+    pub length: u8,
+}
+
+/// Handshake
+#[repr(packed)]
+pub struct HandshakeData {
+    pub src_dev_id: u8,
+    pub dest_dev_id: u8,
+    pub priority: u8,
+    /// 0 = 115200, 1 = 400000 (See SRXL_BAUD_xxx definitions above)
+    pub baud_supported: u8,
+    /// See SRXL_DEVINFO_xxx definitions above for defined bits
+    pub info: u8,
+    /// Unique/random id to allow detection of two devices on bus with same deviceID
+    pub uid: u32,
+}
+
+#[repr(packed)]
+pub struct HandshakePacket {
+    pub hdr: Header,
+    pub payload: HandshakeData,
+    pub crc: u16,
 }
 
 #[repr(packed)]

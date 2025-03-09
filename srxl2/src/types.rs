@@ -1,12 +1,18 @@
 
 //! Ported from https://github.com/SpektrumRC/SRXL2/tree/master/Source by Steven Vergenz
 
+use core::{
+    mem::{size_of, transmute},
+    convert::{From, Into, AsRef},
+};
+
 //      7.1 General Overview
 pub const SPEKTRUM_SRXL_ID: u8 = 0xA6;
-pub const SRXL_MAX_BUFFER_SIZE: u8 = 80;
+pub const SRXL_MAX_BUFFER_SIZE: usize = 80;
 pub const SRXL_MAX_DEVICES: u8 = 16;
 
 /// Supported SRXL device types (upper nibble of device ID)
+#[repr(u8)]
 pub enum SrxlDevType {
     None                = 0,
     RemoteReceiver      = 1,
@@ -43,23 +49,25 @@ pub const SRXL_DEFAULT_ID_OF_TYPE: [u8;16] = [
 ];
 
 /// Set SRXL_CRC_OPTIMIZE_MODE in spm_srxl_config.h to one of the following values
-pub mod crc_optimize_mode {
+#[repr(u8)]
+pub enum CrcOptimizeMode {
     /// Uses table lookup for CRC computation (requires 512 const bytes for CRC table)
-    pub const SPEED: u8     = 1;
+    Speed = 1,
     /// Uses bitwise operations
-    pub const SIZE: u8      = 2;
+    Size = 2,
     /// Uses STM32 register-level hardware acceleration (only available on STM32F30x devices for now)
-    pub const STM_HW: u8    = 3;
+    StmHw = 3,
     /// Uses STM32Cube HAL driver for hardware acceleration (only available on STM32F3/F7) -- see srxlCrc16() for details on HAL config
-    pub const STM_HAL: u8   = 4;
+    StmHal = 4,
 }
 
 // Set SRXL_STM_TARGET_FAMILY in spm_srxl_config.h to one of the following values when using one of the STM HW-optimized modes
-pub mod stm_target_family {
+#[repr(u8)]
+pub enum StmTargetFamily {
     /// STM32F3 family
-    pub const F3: u8 = 3;
+    F3 = 3,
     /// STM32F7 family
-    pub const F7: u8 = 7;
+    F7 = 7,
 }
 
 /// 7.2 Handshake Packet
@@ -108,6 +116,7 @@ pub mod bind {
         pub const US_POWER: u8        = 0x04;
     }
 
+    #[repr(u8)]
     pub enum BindStatus {
         NotBound            = 0x00,
         // Air types
@@ -180,40 +189,44 @@ pub enum Cmd {
 }
 
 pub mod vtx {
-    pub mod band {
-        pub const FATSHARK: u8 = 0;
-        pub const RACEBAND: u8 = 1;
-        pub const E_BAND: u8 = 2;
-        pub const B_BAND: u8 = 3;
-        pub const A_BAND: u8 = 4;
+    #[repr(u8)]
+    pub enum Band {
+        FatShark = 0,
+        RaceBand = 1,
+        EBand = 2,
+        BBand = 3,
+        ABand = 4,
     }
 
-    pub mod mode {
-        pub const RACE: u8 = 0;
-        pub const PIT: u8 = 1;
+    #[repr(u8)]
+    pub enum Mode {
+        Race = 0,
+        Pit = 1,
     }
 
-    pub mod power {
-        pub const OFF: u8 = 0;
-        pub const P_1MW_14MW: u8 = 1;
-        pub const P_15MW_25MW: u8 = 2;
-        pub const P_26MW_99MW: u8 = 3;
-        pub const P_100MW_299MW: u8 = 4;
-        pub const P_300MW_600MW: u8 = 5;
-        pub const P_601_PLUS: u8 = 6;
-        pub const MANUAL: u8 = 7;
+    #[repr(u8)]
+    pub enum Power {
+        Off = 0,
+        P1To14Mw = 1,
+        P15To99Mw = 2,
+        P26To99Mw = 3,
+        P100To299Mw = 4,
+        P300To600Mw = 5,
+        P601MwPlus = 6,
+        Manual = 7,
     }
 
-    pub mod region {
-        pub const US: u8 = 0;
-        pub const EU: u8 = 1;
+    #[repr(u8)]
+    pub enum Region {
+        Us = 0,
+        Eu = 1,
     }
 }
 
-pub const FWD_PGM_MAX_DATA_SIZE: u8 = 64;
+pub const FWD_PGM_MAX_DATA_SIZE: usize = 64;
 
 /// Spektrum SRXL header
-#[repr(packed)]
+#[repr(C, packed)]
 pub struct Header {
     /// Always 0xKA6 for SRXL2
     pub srxl_id: u8,
@@ -222,7 +235,7 @@ pub struct Header {
 }
 
 /// Handshake
-#[repr(packed)]
+#[repr(C,packed)]
 pub struct HandshakeData {
     pub src_dev_id: u8,
     pub dest_dev_id: u8,
@@ -235,34 +248,196 @@ pub struct HandshakeData {
     pub uid: u32,
 }
 
-#[repr(packed)]
+#[repr(C, packed)]
 pub struct HandshakePacket {
     pub hdr: Header,
     pub payload: HandshakeData,
     pub crc: u16,
 }
 
-#[repr(packed)]
-pub struct FullId {
-    pub device_id: u8,
-    pub bus_index: u8,
+#[repr(C, packed)]
+pub struct BindData {
+    pub r#type: u8,
+    pub options: u8,
+    pub guid: u64,
+    pub uid: u32,
 }
-impl FullId {
-    pub fn word(&self) -> u16 {
-        ((self.device_id as u16) << 8) | (self.bus_index as u16)
-    }
-    pub fn set_word(&mut self, word: u16) {
-        self.device_id = (word >> 8) as u8;
-        self.bus_index = (word & 0xFF) as u8;
+
+#[repr(C, packed)]
+pub struct BindPacket {
+    pub hdr: Header,
+    pub request: u8,
+    pub device_id: u8,
+    pub data: BindData,
+    pub crc: u16,
+}
+
+#[repr(C, packed)]
+pub struct TelemetryData {
+    pub sensor_id: u8,
+    pub secondary_id: u8,
+    pub data: [u8; 14],
+}
+
+impl Into<[u8; size_of::<Self>()]> for TelemetryData {
+    fn into(self) -> [u8; size_of::<Self>()] {
+        unsafe {
+            transmute(self)
+        }
     }
 }
 
-#[repr(packed)]
+impl From<[u8; size_of::<Self>()]> for TelemetryData {
+    fn from(bytes: [u8; size_of::<Self>()]) -> Self {
+        unsafe {
+            transmute(bytes)
+        }
+    }
+}
+
+impl AsRef<[u8; size_of::<Self>()]> for TelemetryData {
+    fn as_ref(&self) -> &[u8; size_of::<Self>()] {
+        unsafe {
+            transmute(self)
+        }
+    }
+}
+
+/// Signal Quality
+#[repr(C, packed)]
+pub struct RssiPacket {
+    pub hdr: Header,
+    pub request: u8,
+    pub antenna_a: i8,
+    pub antenna_b: i8,
+    pub antenna_c: i8,
+    pub antenna_d: i8,
+    pub crc: u16,
+}
+
+/// Parameter Config
+#[repr(C, packed)]
+pub struct ParamPacket {
+    pub hdr: Header,
+    pub request: u8,
+    pub dest_dev_id: u8,
+    pub param_id: u32,
+    pub param_val: u32,
+    pub crc: u16,
+}
+
+/// VTX Data
+#[repr(C, packed)]
 pub struct VtxData {
-    pub band: u8,
+    pub band: vtx::Band,
     pub channel: u8,
-    pub pit: u8,
-    pub power: u8,
+    pub pit: vtx::Mode,
+    pub power: vtx::Power,
     pub power_dec: u16,
-    pub region: u8,
+    pub region: vtx::Region,
+}
+
+impl Into<[u8; size_of::<Self>()]> for VtxData {
+    fn into(self) -> [u8; size_of::<Self>()] {
+        unsafe {
+            transmute(self)
+        }
+    }
+}
+
+impl From<[u8; size_of::<Self>()]> for VtxData {
+    fn from(bytes: [u8; size_of::<Self>()]) -> Self {
+        unsafe {
+            transmute(bytes)
+        }
+    }
+}
+
+/// Forward Programming Data
+#[repr(C, packed)]
+pub struct FwdPgmData {
+    /// Best RSSI while sending forward programming data
+    pub rssi: i8,
+    /// 0 for now -- used to word-align data
+    pub rfu: [u8; 2],
+    pub data: [u8; FWD_PGM_MAX_DATA_SIZE],
+}
+
+impl Into<[u8; size_of::<Self>()]> for FwdPgmData {
+    fn into(self) -> [u8; size_of::<Self>()] {
+        unsafe {
+            transmute(self)
+        }
+    }
+}
+
+impl From<[u8; size_of::<Self>()]> for FwdPgmData {
+    fn from(bytes: [u8; size_of::<Self>()]) -> Self {
+        unsafe {
+            transmute(bytes)
+        }
+    }
+}
+
+/// Channel Data
+#[repr(C, packed)]
+pub struct ChannelData {
+    /// Best RSSI when sending channel data, or dropout RSSI when sending failsafe data
+    pub rssi: i8,
+    /// Total lost frames (or fade count when sent from Remote Rx to main Receiver)
+    pub frame_losses: u16,
+    /// Set bits indicate that channel data with the corresponding index is present
+    pub mask: u32,
+    /// Channel values, shifted to full 16-bit range (32768 = mid-scale); lowest 2 bits RFU
+    pub values: [u16; 32],
+}
+
+impl Into<[u8; size_of::<Self>()]> for ChannelData {
+    fn into(self) -> [u8; size_of::<Self>()] {
+        unsafe {
+            transmute(self)
+        }
+    }
+}
+
+impl From<[u8; size_of::<Self>()]> for ChannelData {
+    fn from(bytes: [u8; size_of::<Self>()]) -> Self {
+        unsafe {
+            transmute(bytes)
+        }
+    }
+}
+
+const fn max(a: usize, b: usize) -> usize {
+    if b > a {
+        b
+    }
+    else {
+        a
+    }
+}
+
+#[repr(C, packed)]
+pub struct ControlData {
+    pub cmd: u8,
+    pub reply_id: u8,
+    pub data: [u8; max(
+        size_of::<ChannelData>(),
+        max(
+            size_of::<VtxData>(),
+            size_of::<FwdPgmData>(),
+        ),
+    )],
+}
+
+impl ControlData {
+    pub fn channel_data(&self) -> &ChannelData {
+        self.data.
+    }
+}
+
+#[repr(C, packed)]
+pub struct FullId {
+    pub device_id: u8,
+    pub bus_index: u8,
 }

@@ -15,4 +15,4 @@ default = ["no_std"]
 no_std = []
 
 [dependencies]
-zerocopy = "0.8.23"
+zerocopy = { version = "0.8.23", features = ["derive"] }

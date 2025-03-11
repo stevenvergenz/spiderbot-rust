@@ -1,9 +1,9 @@
 
 //! Ported from https://github.com/SpektrumRC/SRXL2/tree/master/Source by Steven Vergenz
 
-use core::{
-    mem::{size_of, transmute},
-    convert::{From, Into, AsRef},
+use core::mem::size_of;
+use zerocopy::{
+    CastError, TryCastError, FromBytes, Immutable, IntoBytes, KnownLayout, TryFromBytes,
 };
 
 //      7.1 General Overview
@@ -189,7 +189,10 @@ pub enum Cmd {
 }
 
 pub mod vtx {
+    use zerocopy::{Immutable, IntoBytes, KnownLayout, TryFromBytes};
+
     #[repr(u8)]
+    #[derive(KnownLayout, Immutable, TryFromBytes, IntoBytes)]
     pub enum Band {
         FatShark = 0,
         RaceBand = 1,
@@ -199,12 +202,14 @@ pub mod vtx {
     }
 
     #[repr(u8)]
+    #[derive(KnownLayout, Immutable, TryFromBytes, IntoBytes)]
     pub enum Mode {
         Race = 0,
         Pit = 1,
     }
 
     #[repr(u8)]
+    #[derive(KnownLayout, Immutable, TryFromBytes, IntoBytes)]
     pub enum Power {
         Off = 0,
         P1To14Mw = 1,
@@ -217,6 +222,7 @@ pub mod vtx {
     }
 
     #[repr(u8)]
+    #[derive(KnownLayout, Immutable, TryFromBytes, IntoBytes)]
     pub enum Region {
         Us = 0,
         Eu = 1,
@@ -227,6 +233,7 @@ pub const FWD_PGM_MAX_DATA_SIZE: usize = 64;
 
 /// Spektrum SRXL header
 #[repr(C, packed)]
+#[derive(KnownLayout, Immutable, FromBytes, IntoBytes)]
 pub struct Header {
     /// Always 0xKA6 for SRXL2
     pub srxl_id: u8,
@@ -236,6 +243,7 @@ pub struct Header {
 
 /// Handshake
 #[repr(C,packed)]
+#[derive(KnownLayout, Immutable, FromBytes, IntoBytes)]
 pub struct HandshakeData {
     pub src_dev_id: u8,
     pub dest_dev_id: u8,
@@ -249,6 +257,7 @@ pub struct HandshakeData {
 }
 
 #[repr(C, packed)]
+#[derive(KnownLayout, Immutable, FromBytes, IntoBytes)]
 pub struct HandshakePacket {
     pub hdr: Header,
     pub payload: HandshakeData,
@@ -256,14 +265,16 @@ pub struct HandshakePacket {
 }
 
 #[repr(C, packed)]
+#[derive(KnownLayout, Immutable, FromBytes, IntoBytes)]
 pub struct BindData {
-    pub r#type: u8,
+    pub bind_type: u8,
     pub options: u8,
     pub guid: u64,
     pub uid: u32,
 }
 
 #[repr(C, packed)]
+#[derive(KnownLayout, Immutable, FromBytes, IntoBytes)]
 pub struct BindPacket {
     pub hdr: Header,
     pub request: u8,
@@ -273,38 +284,16 @@ pub struct BindPacket {
 }
 
 #[repr(C, packed)]
+#[derive(KnownLayout, Immutable, FromBytes, IntoBytes)]
 pub struct TelemetryData {
     pub sensor_id: u8,
     pub secondary_id: u8,
     pub data: [u8; 14],
 }
 
-impl Into<[u8; size_of::<Self>()]> for TelemetryData {
-    fn into(self) -> [u8; size_of::<Self>()] {
-        unsafe {
-            transmute(self)
-        }
-    }
-}
-
-impl From<[u8; size_of::<Self>()]> for TelemetryData {
-    fn from(bytes: [u8; size_of::<Self>()]) -> Self {
-        unsafe {
-            transmute(bytes)
-        }
-    }
-}
-
-impl AsRef<[u8; size_of::<Self>()]> for TelemetryData {
-    fn as_ref(&self) -> &[u8; size_of::<Self>()] {
-        unsafe {
-            transmute(self)
-        }
-    }
-}
-
 /// Signal Quality
 #[repr(C, packed)]
+#[derive(KnownLayout, Immutable, FromBytes, IntoBytes)]
 pub struct RssiPacket {
     pub hdr: Header,
     pub request: u8,
@@ -317,6 +306,7 @@ pub struct RssiPacket {
 
 /// Parameter Config
 #[repr(C, packed)]
+#[derive(KnownLayout, Immutable, FromBytes, IntoBytes)]
 pub struct ParamPacket {
     pub hdr: Header,
     pub request: u8,
@@ -328,6 +318,7 @@ pub struct ParamPacket {
 
 /// VTX Data
 #[repr(C, packed)]
+#[derive(KnownLayout, Immutable, TryFromBytes, IntoBytes)]
 pub struct VtxData {
     pub band: vtx::Band,
     pub channel: u8,
@@ -337,24 +328,9 @@ pub struct VtxData {
     pub region: vtx::Region,
 }
 
-impl Into<[u8; size_of::<Self>()]> for VtxData {
-    fn into(self) -> [u8; size_of::<Self>()] {
-        unsafe {
-            transmute(self)
-        }
-    }
-}
-
-impl From<[u8; size_of::<Self>()]> for VtxData {
-    fn from(bytes: [u8; size_of::<Self>()]) -> Self {
-        unsafe {
-            transmute(bytes)
-        }
-    }
-}
-
 /// Forward Programming Data
 #[repr(C, packed)]
+#[derive(KnownLayout, Immutable, FromBytes, IntoBytes)]
 pub struct FwdPgmData {
     /// Best RSSI while sending forward programming data
     pub rssi: i8,
@@ -363,24 +339,9 @@ pub struct FwdPgmData {
     pub data: [u8; FWD_PGM_MAX_DATA_SIZE],
 }
 
-impl Into<[u8; size_of::<Self>()]> for FwdPgmData {
-    fn into(self) -> [u8; size_of::<Self>()] {
-        unsafe {
-            transmute(self)
-        }
-    }
-}
-
-impl From<[u8; size_of::<Self>()]> for FwdPgmData {
-    fn from(bytes: [u8; size_of::<Self>()]) -> Self {
-        unsafe {
-            transmute(bytes)
-        }
-    }
-}
-
 /// Channel Data
 #[repr(C, packed)]
+#[derive(KnownLayout, Immutable, FromBytes, IntoBytes)]
 pub struct ChannelData {
     /// Best RSSI when sending channel data, or dropout RSSI when sending failsafe data
     pub rssi: i8,
@@ -392,51 +353,60 @@ pub struct ChannelData {
     pub values: [u16; 32],
 }
 
-impl Into<[u8; size_of::<Self>()]> for ChannelData {
-    fn into(self) -> [u8; size_of::<Self>()] {
-        unsafe {
-            transmute(self)
-        }
-    }
-}
-
-impl From<[u8; size_of::<Self>()]> for ChannelData {
-    fn from(bytes: [u8; size_of::<Self>()]) -> Self {
-        unsafe {
-            transmute(bytes)
-        }
-    }
-}
-
-const fn max(a: usize, b: usize) -> usize {
+const fn max(a: usize, b: usize, c: usize) -> usize {
     if b > a {
-        b
+        if c > b {
+            c
+        }
+        else {
+            b
+        }
     }
     else {
-        a
+        if c > a {
+            c
+        }
+        else {
+            a
+        }
     }
 }
 
 #[repr(C, packed)]
+#[derive(KnownLayout, Immutable, FromBytes, IntoBytes)]
 pub struct ControlData {
     pub cmd: u8,
     pub reply_id: u8,
     pub data: [u8; max(
+        size_of::<VtxData>(),
+        size_of::<FwdPgmData>(),
         size_of::<ChannelData>(),
-        max(
-            size_of::<VtxData>(),
-            size_of::<FwdPgmData>(),
-        ),
     )],
 }
 
 impl ControlData {
-    pub fn channel_data(&self) -> &ChannelData {
-        self.data.
+    pub fn channel_data(&self) -> Result<&ChannelData, CastError<&[u8], ChannelData>> {
+        ChannelData::ref_from_bytes(self.data.as_slice())
+    }
+
+    pub fn vtx_data(&self) -> Result<&VtxData, TryCastError<&[u8], VtxData>> {
+        VtxData::try_ref_from_bytes(self.data.as_slice())
+    }
+
+    pub fn fwd_pgm_data(&self) -> Result<&FwdPgmData, CastError<&[u8], FwdPgmData>> {
+        FwdPgmData::ref_from_bytes(self.data.as_slice())
     }
 }
 
 #[repr(C, packed)]
+#[derive(KnownLayout, Immutable, FromBytes, IntoBytes)]
+pub struct ControlPacket {
+    pub hdr: Header,
+    pub payload: ControlData,
+}
+
+#[repr(C, packed)]
+#[derive(KnownLayout, Immutable, FromBytes, IntoBytes)]
 pub struct FullId {
     pub device_id: u8,
     pub bus_index: u8,

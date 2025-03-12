@@ -11,43 +11,6 @@ pub const SPEKTRUM_SRXL_ID: u8 = 0xA6;
 pub const SRXL_MAX_BUFFER_SIZE: usize = 80;
 pub const SRXL_MAX_DEVICES: u8 = 16;
 
-/// Supported SRXL device types (upper nibble of device ID)
-#[repr(u8)]
-pub enum SrxlDevType {
-    None                = 0,
-    RemoteReceiver      = 1,
-    Receiver            = 2,
-    FlightController    = 3,
-    ESC                 = 4,
-    SRXLServo1          = 6,
-    SRXLServo2          = 7,
-    VTX                 = 8,
-    ExtRF               = 9,
-    RemoteId            = 10,
-    Sensor              = 11,
-    Broadcast           = 15,
-}
-
-/// Default device ID list used by master when polling
-pub const SRXL_DEFAULT_ID_OF_TYPE: [u8;16] = [
-    0x00,  // SrxlDevType::None
-    0x10,  // SrxlDevType::RemoteReceiver
-    0x21,  // SrxlDevType::Receiver
-    0x30,  // SrxlDevType::FlightController
-    0x40,  // SrxlDevType::ESC
-    0x60,  // 5
-    0x60,  // SrxlDevType::SRXLServo1
-    0x70,  // SrxlDevType::SRXLServo2
-    0x81,  // SrxlDevType::VTX
-    0x90,  // SrxlDevType::ExtRF
-    0xA0,  // SrxlDevType::RemoteId
-    0xB0,  // SrxlDevType::Sensor
-    0xFF,  // 12
-    0xFF,  // 13
-    0xFF,  // 14
-    0xFF,  // SrxlDevType::Broadcast
-];
-
 /// Set SRXL_CRC_OPTIMIZE_MODE in spm_srxl_config.h to one of the following values
 #[repr(u8)]
 pub enum CrcOptimizeMode {
@@ -69,6 +32,7 @@ pub enum StmTargetFamily {
     /// STM32F7 family
     F7 = 7,
 }
+
 
 /// 7.2 Handshake Packet
 pub mod handshake {
@@ -231,38 +195,6 @@ pub mod vtx {
 
 pub const FWD_PGM_MAX_DATA_SIZE: usize = 64;
 
-/// Spektrum SRXL header
-#[repr(C, packed)]
-#[derive(KnownLayout, Immutable, FromBytes, IntoBytes)]
-pub struct Header {
-    /// Always 0xKA6 for SRXL2
-    pub srxl_id: u8,
-    pub packet_type: u8,
-    pub length: u8,
-}
-
-/// Handshake
-#[repr(C,packed)]
-#[derive(KnownLayout, Immutable, FromBytes, IntoBytes)]
-pub struct HandshakeData {
-    pub src_dev_id: u8,
-    pub dest_dev_id: u8,
-    pub priority: u8,
-    /// 0 = 115200, 1 = 400000 (See SRXL_BAUD_xxx definitions above)
-    pub baud_supported: u8,
-    /// See SRXL_DEVINFO_xxx definitions above for defined bits
-    pub info: u8,
-    /// Unique/random id to allow detection of two devices on bus with same deviceID
-    pub uid: u32,
-}
-
-#[repr(C, packed)]
-#[derive(KnownLayout, Immutable, FromBytes, IntoBytes)]
-pub struct HandshakePacket {
-    pub hdr: Header,
-    pub payload: HandshakeData,
-    pub crc: u16,
-}
 
 #[repr(C, packed)]
 #[derive(KnownLayout, Immutable, FromBytes, IntoBytes)]
@@ -403,11 +335,4 @@ impl ControlData {
 pub struct ControlPacket {
     pub hdr: Header,
     pub payload: ControlData,
-}
-
-#[repr(C, packed)]
-#[derive(KnownLayout, Immutable, FromBytes, IntoBytes)]
-pub struct FullId {
-    pub device_id: u8,
-    pub bus_index: u8,
 }

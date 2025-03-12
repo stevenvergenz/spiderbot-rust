@@ -1,5 +1,5 @@
 use core::convert::TryFrom;
-use zerocopy::{KnownLayout, Immutable, FromBytes, TryFromBytes, IntoBytes};
+use zerocopy::{KnownLayout, Immutable, FromBytes, IntoBytes};
 
 /// Default device ID list used by master when polling
 const SRXL_DEFAULT_ID_OF_TYPE: [u8; 16] = [

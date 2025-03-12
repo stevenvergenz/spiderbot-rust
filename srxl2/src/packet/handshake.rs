@@ -1,7 +1,6 @@
 use zerocopy::{KnownLayout, Immutable, TryFromBytes, IntoBytes};
 use super::Header;
 
-
 /// Supported additional baud rates besides default 115200
 /// NOTE: Treated as bitmask, ANDed with baud rates from slaves
 pub mod baud {

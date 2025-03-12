@@ -34,3 +34,8 @@ pub enum PacketType {
 }
 
 pub mod handshake;
+pub mod bind;
+pub mod param;
+pub mod rssi;
+pub mod vtx;
+pub mod telemetry;

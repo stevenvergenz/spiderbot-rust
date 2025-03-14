@@ -4,7 +4,11 @@ use zerocopy::{
     FromBytes,
     TryFromBytes,
     IntoBytes,
+    CastError,
+    TryCastError,
 };
+
+pub const SRXL_MAX_BUFFER_SIZE: usize = 80;
 
 /// Spektrum SRXL header
 #[repr(C, packed)]
@@ -33,9 +37,24 @@ pub enum PacketType {
     ControlData = 0xCD,
 }
 
+#[repr(C, packed)]
+#[derive(KnownLayout, Immutable, FromBytes, IntoBytes)]
+pub struct Packet {
+    pub raw: [u8; SRXL_MAX_BUFFER_SIZE],
+}
+
+impl Packet {
+    pub fn header(&self) -> Result<&Header, CastError<&[u8], Header>> {
+        Header::ref_from_bytes(self.raw.as_slice())
+    }
+}
+
 pub mod handshake;
 pub mod bind;
 pub mod param;
 pub mod rssi;
 pub mod vtx;
 pub mod telemetry;
+pub mod fwd_pgm;
+pub mod channel;
+pub mod control;

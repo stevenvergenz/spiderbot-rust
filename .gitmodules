@@ -1,0 +1,3 @@
+[submodule "ref"]
+	path = srxl2/reference
+	url = git@github.com:SpektrumRC/SRXL2.git

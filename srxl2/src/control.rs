@@ -8,23 +8,23 @@ use zerocopy::{
     IntoBytes,
 };
 use crate::{
-    packet::{
-        Header,
-        channel::ChannelData,
-        fwd_pgm::FwdPgmData,
-        vtx::VtxData,
-    },
-    id::DeviceId,
+    channel::ChannelData,
+    device::DeviceId,
+    fwd_pgm::FwdPgmData,
+    packet::Header,
+    vtx::VtxData
 };
 
 // header + cmd/replyID + crc
 pub const BASE_LENGTH: u8 = 3 + 2 + 2;
 
-pub mod cmd {
-    pub const CHANNEL: u8 = 0x00;
-    pub const CHANNEL_FS: u8 = 0x01;
-    pub const VTX: u8 = 0x02;
-    pub const FWDPGM: u8 = 0x03;
+#[repr(u8)]
+#[derive(KnownLayout, Immutable, TryFromBytes, IntoBytes)]
+pub enum CmdCode {
+    Channel = 0x00,
+    ChannelFailsafe = 0x01,
+    Vtx = 0x02,
+    FwdPgm = 0x03,
 }
 
 pub enum Cmd {
@@ -43,54 +43,54 @@ pub enum Cmd {
     Internal,
 }
 
-const fn max(a: usize, b: usize, c: usize) -> usize {
+const fn max2(a: usize, b: usize) -> usize {
     if b > a {
-        if c > b {
-            c
-        }
-        else {
-            b
-        }
+        b
     }
     else {
-        if c > a {
-            c
-        }
-        else {
-            a
-        }
+        a
+    }
+}
+
+const fn max3(a: usize, b: usize, c: usize) -> usize {
+    if c > a && c > b {
+        c
+    }
+    else {
+        max2(a, b)
     }
 }
 
 #[repr(C, packed)]
-#[derive(KnownLayout, Immutable, FromBytes, IntoBytes)]
+#[derive(KnownLayout, Immutable, TryFromBytes, IntoBytes)]
 pub struct ControlData {
-    pub cmd: u8,
-    pub reply_id: u8,
-    pub data: [u8; max(
+    pub cmd: CmdCode,
+    pub reply_id: DeviceId,
+    pub data: [u8; max3(
         size_of::<VtxData>(),
         size_of::<FwdPgmData>(),
         size_of::<ChannelData>(),
     )],
 }
 
+pub struct ControlPacket<'a> {
+    pub hdr: &'a Header,
+    pub control: &'a ControlData,
+}
+
 impl ControlData {
+    /// Used for Channel Data and Failsafe Channel Data commands
     pub fn channel_data(&self) -> Result<&ChannelData, CastError<&[u8], ChannelData>> {
         ChannelData::ref_from_bytes(self.data.as_slice())
     }
 
+    /// Used for VTX commands
     pub fn vtx_data(&self) -> Result<&VtxData, TryCastError<&[u8], VtxData>> {
         VtxData::try_ref_from_bytes(self.data.as_slice())
     }
 
+    /// Used to pass forward programming data to an SRXL device
     pub fn fwd_pgm_data(&self) -> Result<&FwdPgmData, CastError<&[u8], FwdPgmData>> {
         FwdPgmData::ref_from_bytes(self.data.as_slice())
     }
-}
-
-#[repr(C, packed)]
-#[derive(KnownLayout, Immutable, FromBytes, IntoBytes)]
-pub struct ControlPacket {
-    pub hdr: Header,
-    pub payload: ControlData,
 }

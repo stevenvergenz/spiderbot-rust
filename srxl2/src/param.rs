@@ -6,7 +6,7 @@ use zerocopy::{
 };
 use crate::{
     packet::Header,
-    id::DeviceId,
+    device::DeviceId,
 };
 
 #[repr(u8)]
@@ -19,8 +19,7 @@ pub enum Request {
 /// Parameter Config
 #[repr(C, packed)]
 #[derive(KnownLayout, Immutable, TryFromBytes, IntoBytes)]
-pub struct ParamPacket {
-    pub hdr: Header,
+pub struct ParamPayload {
     pub request: Request,
     pub dest_dev_id: DeviceId,
     pub param_id: u32,

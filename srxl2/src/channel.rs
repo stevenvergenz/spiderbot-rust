@@ -19,3 +19,14 @@ pub struct ChannelData {
     /// Channel values, shifted to full 16-bit range (32768 = mid-scale); lowest 2 bits RFU
     pub values: [u16; 32],
 }
+
+impl ChannelData {
+    pub fn new() -> Self {
+        Self {
+            rssi: 0,
+            frame_losses: 0,
+            mask: 0,
+            values: [0; 32],
+        }
+    }
+}

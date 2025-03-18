@@ -4,10 +4,7 @@ use zerocopy::{
     FromBytes,
     IntoBytes,
 };
-use crate::{
-    id::DeviceId,
-    packet::Header,
-};
+use crate::device::DeviceId;
 
 #[repr(C, packed)]
 #[derive(KnownLayout, Immutable, FromBytes, IntoBytes)]
@@ -19,8 +16,7 @@ pub struct TelemetryData {
 
 #[repr(C, packed)]
 #[derive(KnownLayout, Immutable, FromBytes, IntoBytes)]
-pub struct TelemetryPacket {
-    pub hdr: Header,
+pub struct TelemetryPayload {
     pub dest_dev: DeviceId,
     pub payload: TelemetryData,
     pub crc: u16,

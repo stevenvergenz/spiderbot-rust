@@ -6,8 +6,9 @@ use zerocopy::{
     IntoBytes,
 };
 use crate::{
+    flags::Flags,
     packet::Header,
-    id::DeviceId,
+    device::DeviceId,
 };
 
 #[repr(u8)]
@@ -20,14 +21,16 @@ pub enum Request {
 }
 
 /// Bit masks for Options byte
-pub mod opt {
-    pub const NONE: u8            = 0x00;
+#[repr(u8)]
+#[derive(KnownLayout, Immutable, TryFromBytes, IntoBytes)]
+pub enum BindOption {
+    None = 0,
     /// Set if this device should be enabled as the current telemetry device to tx over RF
-    pub const TELEM_TX_ENABLE: u8 = 0x01;
+    TelemTxEnable = 0x01,
     /// Set if this device should reply to a bind request with a Discover packet over RF
-    pub const BIND_TX_ENABLE: u8  = 0x02;
+    BindTxEnable = 0x02,
     /// Set if this device should request US transmit power levels instead of EU
-    pub const US_POWER: u8        = 0x04;
+    UsPower = 0x04,
 }
 
 #[repr(u8)]
@@ -51,15 +54,14 @@ pub enum BindStatus {
 #[derive(KnownLayout, Immutable, FromBytes, IntoBytes)]
 pub struct BindData {
     pub bind_type: u8,
-    pub options: u8,
+    pub options: Flags<BindOption>,
     pub guid: u64,
     pub uid: u32,
 }
 
 #[repr(C, packed)]
 #[derive(KnownLayout, Immutable, TryFromBytes, IntoBytes)]
-pub struct BindPacket {
-    pub hdr: Header,
+pub struct BindPayload {
     pub request: Request,
     pub device_id: DeviceId,
     pub data: BindData,

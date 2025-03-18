@@ -4,7 +4,6 @@ use zerocopy::{
     TryFromBytes,
     IntoBytes,
 };
-use super::Header;
 
 #[repr(u8)]
 #[derive(KnownLayout, Immutable, TryFromBytes, IntoBytes)]
@@ -16,8 +15,7 @@ pub enum Request {
 /// Signal Quality
 #[repr(C, packed)]
 #[derive(KnownLayout, Immutable, TryFromBytes, IntoBytes)]
-pub struct RssiPacket {
-    pub hdr: Header,
+pub struct RssiPayload {
     pub request: Request,
     pub antenna_a: i8,
     pub antenna_b: i8,

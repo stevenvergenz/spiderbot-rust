@@ -1,8 +1,19 @@
-use core::convert::TryFrom;
-use zerocopy::{KnownLayout, Immutable, FromBytes, IntoBytes};
+use core::convert::{From, TryFrom, Into};
+use zerocopy::{
+    KnownLayout,
+    Immutable,
+    FromBytes,
+    IntoBytes,
+    TryFromBytes,
+};
+
+use crate::{
+    flags::Flags,
+    receiver::ReceiverEntry,
+};
 
 /// Default device ID list used by master when polling
-const SRXL_DEFAULT_ID_OF_TYPE: [u8; 16] = [
+const DEFAULT_ID_OF_TYPE: [u8; 16] = [
     0x00,  // SrxlDevType::None
     0x10,  // SrxlDevType::RemoteReceiver
     0x21,  // SrxlDevType::Receiver
@@ -40,7 +51,7 @@ pub enum DeviceType {
 
 impl DeviceType {
     pub const fn default_value(self) -> u8 {
-        SRXL_DEFAULT_ID_OF_TYPE[self as usize]
+        DEFAULT_ID_OF_TYPE[self as usize]
     }
 }
 
@@ -90,6 +101,20 @@ impl TryFrom<u8> for DeviceType {
     }
 }
 
+/// Bit masks for Device Info byte sent via Handshake
+#[repr(u8)]
+#[derive(KnownLayout, Immutable, IntoBytes, TryFromBytes)]
+pub enum DeviceInfo {
+    /// This is the base for non-RF devices
+    NoRf = 0,
+    /// This bit is set if the device is actively configured to transmit telemetry over RF
+    TelemTxEnabled = 1,
+    /// This bit is set if the device can send full-range telemetry over RF
+    TelemFullRange = 2,
+    /// This bit is set if the device supports Forward Programming via RF or SRXL
+    FwdProgSupport = 4,
+}
+
 #[repr(C, packed)]
 #[derive(KnownLayout, Immutable, FromBytes, IntoBytes)]
 pub struct DeviceId(u8);
@@ -97,6 +122,27 @@ pub struct DeviceId(u8);
 #[repr(C, packed)]
 #[derive(KnownLayout, Immutable, FromBytes, IntoBytes)]
 pub struct FullId {
-    pub device_id: u8,
+    pub device_id: DeviceId,
     pub bus_index: u8,
+}
+
+pub struct DeviceEntry {
+    pub device_id: DeviceId,
+    /// Requested telemetry priority of this device
+    pub priority: u8,
+    /// Refer to SRXL_DEVINFO_XXX mask bits in header
+    pub info: Flags<DeviceInfo>,
+    pub rfu: u8,
+}
+
+pub struct Device {
+    /// Device info for this local device, shared across all buses.
+    pub dev_entry: DeviceEntry,
+    /// ID statistically likely to be unique (Random, hash of serial, etc.)
+    pub uid: u32,
+    /// Pointer to our receiver entry, if we're a receiver (don't set for
+    /// flight controller acting as hub -- only true receiver)
+    pub rcvr: Option<&ReceiverEntry>,
+    /// Set true if this device can and should respond to VTX commands
+    pub vtx_proxy: bool,
 }

@@ -20,6 +20,7 @@ pub const BASE_LENGTH: u8 = 3 + 2 + 2;
 
 #[repr(u8)]
 #[derive(KnownLayout, Immutable, TryFromBytes, IntoBytes)]
+#[derive(PartialEq, Eq)]
 pub enum CmdCode {
     Channel = 0x00,
     ChannelFailsafe = 0x01,
@@ -73,24 +74,109 @@ pub struct ControlData {
     )],
 }
 
+#[repr(C, packed)]
+#[derive(KnownLayout, Immutable, TryFromBytes, IntoBytes)]
+pub struct ControlVtxData<'a> {
+    pub cmd: &'a CmdCode,
+    pub reply_id: &'a DeviceId,
+    pub data: &'a VtxData,
+}
+
+#[repr(C, packed)]
+#[derive(KnownLayout, Immutable, TryFromBytes, IntoBytes)]
+pub struct ControlFwdPgmData<'a> {
+    pub cmd: &'a CmdCode,
+    pub reply_id: &'a DeviceId,
+    pub data: &'a FwdPgmData,
+}
+
+#[repr(C, packed)]
+#[derive(KnownLayout, Immutable, TryFromBytes, IntoBytes)]
+pub struct ControlChannelData<'a> {
+    pub cmd: &'a CmdCode,
+    pub reply_id: &'a DeviceId,
+    pub data: &'a ChannelData,
+}
+
 pub struct ControlPacket<'a> {
     pub hdr: &'a Header,
     pub control: &'a ControlData,
 }
 
-impl ControlData {
+pub struct ControlVtxPacket<'a> {
+    pub hdr: &'a Header,
+    pub control: ControlVtxData<'a>,
+}
+pub struct ControlFwdPgmPacket<'a> {
+    pub hdr: &'a Header,
+    pub control: ControlFwdPgmData<'a>,
+}
+pub struct ControlChannelPacket<'a> {
+    pub hdr: &'a Header,
+    pub control: ControlChannelData<'a>,
+}
+
+impl<'a> ControlPacket<'a> {
     /// Used for Channel Data and Failsafe Channel Data commands
-    pub fn channel_data(&self) -> Result<&ChannelData, CastError<&[u8], ChannelData>> {
-        ChannelData::ref_from_bytes(self.data.as_slice())
+    pub fn as_channel_ref(&self) -> Option<ControlChannelPacket> {
+        if self.control.cmd != CmdCode::Channel && self.control.cmd != CmdCode::ChannelFailsafe {
+            None
+        }
+        else {
+            match ChannelData::try_ref_from_bytes(self.control.data.as_slice()) {
+                Err(_) => None,
+                Ok(channel) => Some(ControlChannelPacket {
+                    hdr: self.hdr,
+                    control: ControlChannelData {
+                        cmd: &self.control.cmd,
+                        reply_id: &self.control.reply_id,
+                        data: channel,
+                    },
+                }),
+            }
+
+        }
     }
 
     /// Used for VTX commands
-    pub fn vtx_data(&self) -> Result<&VtxData, TryCastError<&[u8], VtxData>> {
-        VtxData::try_ref_from_bytes(self.data.as_slice())
+    pub fn as_vtx_ref(&self) -> Option<ControlVtxPacket> {
+        if self.control.cmd != CmdCode::Vtx {
+            None
+        }
+        else {
+            match VtxData::try_ref_from_bytes(self.control.data.as_slice()) {
+                Err(_) => None,
+                Ok(vtx) => Some(ControlVtxPacket {
+                    hdr: self.hdr,
+                    control: ControlVtxData {
+                        cmd: &self.control.cmd,
+                        reply_id: &self.control.reply_id,
+                        data: vtx,
+                    },
+                }),
+            }
+
+        }
     }
 
     /// Used to pass forward programming data to an SRXL device
-    pub fn fwd_pgm_data(&self) -> Result<&FwdPgmData, CastError<&[u8], FwdPgmData>> {
-        FwdPgmData::ref_from_bytes(self.data.as_slice())
+    pub fn as_fwd_pgm_ref(&self) -> Option<ControlFwdPgmPacket> {
+        if self.control.cmd != CmdCode::FwdPgm {
+            None
+        }
+        else {
+            match FwdPgmData::try_ref_from_bytes(self.control.data.as_slice()) {
+                Err(_) => None,
+                Ok(fwd_pgm) => Some(ControlFwdPgmPacket {
+                    hdr: self.hdr,
+                    control: ControlFwdPgmData {
+                        cmd: &self.control.cmd,
+                        reply_id: &self.control.reply_id,
+                        data: fwd_pgm,
+                    },
+                }),
+            }
+
+        }
     }
 }

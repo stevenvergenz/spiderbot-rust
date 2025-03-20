@@ -12,6 +12,8 @@ use crate::{
     receiver::ReceiverEntry,
 };
 
+pub const MAX_DEVICES: u8 = 16;
+
 /// Default device ID list used by master when polling
 const DEFAULT_ID_OF_TYPE: [u8; 16] = [
     0x00,  // SrxlDevType::None
@@ -106,13 +108,13 @@ impl TryFrom<u8> for DeviceType {
 #[derive(KnownLayout, Immutable, IntoBytes, TryFromBytes)]
 pub enum DeviceInfo {
     /// This is the base for non-RF devices
-    NoRf = 0,
+    NoRf = 0x00,
     /// This bit is set if the device is actively configured to transmit telemetry over RF
-    TelemTxEnabled = 1,
+    TelemTxEnabled = 0x01,
     /// This bit is set if the device can send full-range telemetry over RF
-    TelemFullRange = 2,
+    TelemFullRange = 0x02,
     /// This bit is set if the device supports Forward Programming via RF or SRXL
-    FwdProgSupport = 4,
+    FwdProgSupport = 0x04,
 }
 
 #[repr(C, packed)]
@@ -142,7 +144,7 @@ pub struct Device {
     pub uid: u32,
     /// Pointer to our receiver entry, if we're a receiver (don't set for
     /// flight controller acting as hub -- only true receiver)
-    pub rcvr: Option<&ReceiverEntry>,
+    pub rcvr: Option<ReceiverEntry>,
     /// Set true if this device can and should respond to VTX commands
     pub vtx_proxy: bool,
 }

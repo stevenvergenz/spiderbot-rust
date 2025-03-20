@@ -17,22 +17,9 @@ mod telemetry;
 mod vtx;
 mod fwd_pgm;
 mod error;
+mod crc;
+mod tx;
+mod bus;
 
 pub use types::*;
 pub use fns::*;
-
-#[cfg(feature = "1_bus")]
-const NUM_OF_BUSES: usize = 1;
-
-#[cfg(feature = "2_bus")]
-const NUM_OF_BUSES: usize = 2;
-
-#[cfg(feature = "4_bus")]
-const NUM_OF_BUSES: usize = 4;
-
-#[cfg(feature = "8_bus")]
-const NUM_OF_BUSES: usize = 8;
-
-const IS_HUB: bool = NUM_OF_BUSES > 1;
-
-const ALL_BUSES: usize = (1 << NUM_OF_BUSES) - 1;

@@ -12,7 +12,7 @@ use crate::{
     receiver::ReceiverEntry,
 };
 
-pub const MAX_DEVICES: u8 = 16;
+pub const MAX_DEVICES: usize = 16;
 
 /// Default device ID list used by master when polling
 const DEFAULT_ID_OF_TYPE: [u8; 16] = [

@@ -1,3 +1,7 @@
+use zerocopy::{KnownLayout, Immutable, TryFromBytes, IntoBytes};
+
+#[repr(u8)]
+#[derive(KnownLayout, Immutable, TryFromBytes, IntoBytes)]
 pub enum TxFlag {
     EnterBind = 0x01,
     GetBindInfo = 0x02,

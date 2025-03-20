@@ -5,7 +5,7 @@ use zerocopy::{
     IntoBytes,
 };
 use crate::{
-    device::{DeviceInfo, DeviceId}, NUM_OF_BUSES
+    device::{DeviceInfo, DeviceId}, bus::NUM_OF_BUSES
 };
 
 const MAX_RCVRS: usize = 2 * NUM_OF_BUSES;

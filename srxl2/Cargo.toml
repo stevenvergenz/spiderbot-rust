@@ -11,7 +11,7 @@ test = false
 bench = false
 
 [features]
-default = ["1_bus", "crc_speed"]
+default = ["1_bus", "crc_speed", "stm_f3"]
 1_bus = []
 2_bus = []
 4_bus = []
@@ -20,6 +20,9 @@ crc_speed = []
 crc_size = []
 crc_stm_hw = []
 crc_stm_hal = []
+stm_f3 = []
+stm_f7 = []
+include_fwdpgm = []
 
 [dependencies]
 zerocopy = { version = "0.8.23", features = ["derive"] }

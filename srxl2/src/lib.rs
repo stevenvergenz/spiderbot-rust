@@ -5,7 +5,7 @@ mod channel;
 mod bind;
 mod device;
 mod types;
-mod fns;
+mod interpreter;
 mod packet;
 mod receiver;
 mod flags;
@@ -22,4 +22,4 @@ mod tx;
 mod bus;
 
 pub use types::*;
-pub use fns::*;
+pub use interpreter::*;

@@ -1,0 +1,32 @@
+[package]
+name = "radio-uno"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+test = false
+bench = false
+
+[[bin]]
+name = "radio-uno"
+test = false
+bench = false
+
+[[bin]]
+name = "monitor"
+test = false
+bench = false
+
+[dependencies]
+panic-halt = { workspace = true }
+ufmt = { workspace = true }
+nb = { workspace = true }
+embedded-hal = { workspace = true }
+arduino-hal = { workspace = true }
+avr-device = { workspace = true }
+embedded-io = "0.6.1"
+
+[build-dependencies]
+proc-macro2 = { workspace = true }

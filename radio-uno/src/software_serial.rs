@@ -18,11 +18,12 @@ enum BitBangState {
     DataBits(u8), // Number of bits read/written so far
 }
 
+const BUFFER_SIZE: usize = 0x400;
+
 pub struct SerialReader8N1<PinRx> where PinRx: InputPin {
     pin_rx: PinRx,
-    read_bits: u8,
-    read_buf: [u8; 16],
-    read_buf_len: usize,
+    head: usize,
+    read_buf: [u8; BUFFER_SIZE],
 
     reader_state: BitBangState,
 }
@@ -31,14 +32,22 @@ impl<PinRx> SerialReader8N1<PinRx> where PinRx: InputPin {
     pub fn new(pin_rx: PinRx) -> Self {
         Self {
             pin_rx,
-            read_bits: 0,
-            read_buf: [0; 16],
-            read_buf_len: 0,
+            head: 0,
+            read_buf: [0; BUFFER_SIZE],
             reader_state: BitBangState::Idle,
         }
     }
 
-    pub fn process(&mut self) {
+    pub fn is_active(&self) -> bool {
+        match self.reader_state {
+            BitBangState::Idle => false, // No data read
+            BitBangState::DataBits(_) => true, // Data byte read
+        }
+    }
+
+    pub fn process(&mut self) -> Result<(), SerialError> {
+        let mut ret = Ok(());
+
         self.reader_state = match self.reader_state {
             // start reading
             BitBangState::Idle => {
@@ -49,38 +58,37 @@ impl<PinRx> SerialReader8N1<PinRx> where PinRx: InputPin {
             },
             // stop reading
             BitBangState::DataBits(8) => {
+                self.head += 1;
                 match self.pin_rx.is_high() {
-                    // stop bit received, commit to buffer
-                    Ok(true) => {
-                        self.read_buf[self.read_buf_len] = self.read_bits;
-                        self.read_buf_len += 1;
-                        self.read_bits = 0;
-                        BitBangState::Idle
-                    },
-                    // stop bit not high or other error, don't commit byte to buffer
-                    _ => {
-                        self.read_bits = 0;
-                        BitBangState::Idle
-                    },
+                    Ok(true) => {},
+                    Ok(false) => { ret = Err(SerialError::new(ErrorKind::InvalidData)); },
+                    _ => { ret = Err(SerialError::new(ErrorKind::Other)); },
                 }
+                BitBangState::Idle
             },
             BitBangState::DataBits(bits_read) => {
                 match self.pin_rx.is_high() {
                     Ok(true) => {
-                        self.read_bits |= 1 << (7 - bits_read);
+                        self.read_buf[self.head]
+                            = self.read_buf[self.head] & !(1 << (7 - bits_read))
+                            | (1 << (7 - bits_read));
                         BitBangState::DataBits(bits_read + 1)
                     },
                     Ok(false) => {
+                        self.read_buf[self.head]
+                            = self.read_buf[self.head] & !(1 << (7 - bits_read));
                         BitBangState::DataBits(bits_read + 1)
                     },
                     Err(_) => {
                         // Error reading pin, reset state
-                        self.read_bits = 0;
+                        self.head += 1;
+                        ret = Err(SerialError::new(ErrorKind::BrokenPipe));
                         BitBangState::Idle
                     }
                 }
             }
         };
+        ret
     }
 }
 
@@ -90,7 +98,7 @@ impl<PinRx> ErrorType for SerialReader8N1<PinRx> where PinRx: InputPin {
 
 impl<PinRx> ReadReady for SerialReader8N1<PinRx> where PinRx: InputPin {
     fn read_ready(&mut self) -> Result<bool, Self::Error> {
-        Ok(self.read_buf_len == self.read_buf.len())
+        Ok(self.head > 0)
     }
 }
 
@@ -101,18 +109,19 @@ impl<PinRx> Read for SerialReader8N1<PinRx> where PinRx: InputPin {
             _ => return Err(SerialError::new(ErrorKind::Unsupported)),
         };
 
-        if buf.len() <= self.read_buf_len {
+        let bytes_read = if buf.len() <= self.head {
             buf.copy_from_slice(&self.read_buf[0..buf.len()]);
-            self.read_buf_len = 0;
-            Ok(buf.len())
+            buf.len()
         }
         else {
-            for (i, x) in self.read_buf[0..self.read_buf_len].iter().enumerate() {
+            for (i, x) in self.read_buf[0..self.head].iter().enumerate() {
                 buf[i] = *x;
             }
-            let len = self.read_buf_len;
-            self.read_buf_len = 0;
-            Ok(len)
-        }
+            self.head
+        };
+
+        self.read_buf[0] = self.read_buf[self.head];
+        self.head = 0;
+        Ok(bytes_read)
     }
 }

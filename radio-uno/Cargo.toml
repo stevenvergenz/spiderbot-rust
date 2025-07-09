@@ -19,6 +19,11 @@ name = "monitor"
 test = false
 bench = false
 
+[[bin]]
+name = "monitor_raw"
+test = false
+bench = false
+
 [dependencies]
 panic-halt = { workspace = true }
 ufmt = { workspace = true }

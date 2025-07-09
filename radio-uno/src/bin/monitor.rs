@@ -29,6 +29,12 @@ fn TIMER2_COMPA() {
     TIMER_INTERRUPT.store(true, Ordering::SeqCst);
 }
 
+static MSG_START: AtomicBool = AtomicBool::new(false);
+#[avr_device::interrupt(atmega328p)]
+fn INT0() {
+    MSG_START.store(true, Ordering::SeqCst);
+}
+
 #[arduino_hal::entry]
 fn main() -> ! {
     let dp = Peripherals::take().unwrap();
@@ -44,37 +50,32 @@ fn main() -> ! {
     // enable overflow clock interrupt
     dp.TC2.timsk2.write(|w| w.ocie2a().set_bit());
 
-    // Enable interrupts globally
+    dp.EXINT.eicra.write(|w| w.isc0().val_0x02()); // falling edge (0=low, 1=any, 2=falling, 3=rising)
+    dp.EXINT.eimsk.write(|w| w.int0().set_bit()); // enable external interrupt 0
+
+    // Enable interrupts globall
     unsafe { avr_device::interrupt::enable() };
 
-    let mut reader = SerialReader8N1::new(pins.d2.into_floating_input());
-    let mut buf = [0u8; 16];
+    let mut reader = SerialReader8N1::new(pins.d2.into_pull_up_input());
+    let mut buf = [0u8; 80];
 
     // Wait for a character and print current time once it is received
     loop {
-        if TIMER_INTERRUPT.load(Ordering::SeqCst) {
+        if !reader.is_active() && MSG_START.load(Ordering::SeqCst)
+            || reader.is_active() && TIMER_INTERRUPT.load(Ordering::SeqCst)
+        {
+            if let Err(e) = reader.process() {
+                ufmt::uwriteln!(&mut serial, "Serial error: {}", e).unwrap();
+            }
             TIMER_INTERRUPT.store(false, Ordering::SeqCst);
-            reader.process();
+            dp.TC2.ocr2a.write(|w| w.bits(PRELOAD as u8));
         }
 
-        match reader.read_ready() {
-            Ok(true) => {
-                match reader.read(&mut buf) {
-                    Ok(len) if len == buf.len() => {
-                        print_buf(&mut serial, &buf);
-                    },
-                    _ => {
-                        // Handle read error
-                    }
-                }
-            },
-            Ok(false) => {
-                arduino_hal::delay_us(30);
-            },
-            Err(_) => {
-                ufmt::uwriteln!(serial, "Error reading serial").unwrap();
-            },
-        };
+        if !reader.is_active() && reader.read_ready().unwrap() {
+            let len = reader.read(&mut buf).unwrap_or(0);
+            print_buf(&mut serial, &buf[..len]);
+            MSG_START.store(false, Ordering::SeqCst);
+        }
     }
 }
 

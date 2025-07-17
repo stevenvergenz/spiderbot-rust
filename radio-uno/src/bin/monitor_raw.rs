@@ -15,7 +15,7 @@ const PRINT_STEP: usize = 0x20;
 fn main() -> ! {
     let dp = Peripherals::take().unwrap();
     let pins = pins!(dp);
-    let mut serial = arduino_hal::default_serial!(dp, pins, 57600);
+    let mut serial = arduino_hal::default_serial!(dp, pins, 9600);
 
     let mut throttle = 0usize;
     let mut samples = [0u8; BUFFER_SIZE];

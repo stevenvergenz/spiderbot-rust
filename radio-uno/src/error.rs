@@ -5,30 +5,25 @@ use embedded_io::{
 use ufmt::uDisplay;
 
 #[derive(Debug)]
-pub struct SerialError {
-    kind: ErrorKind,
-}
-
-impl SerialError {
-    pub fn new(kind: ErrorKind) -> Self {
-        SerialError { kind }
-    }
+pub enum SerialError {
+    BufferFull,
+    NotImplemented,
 }
 
 impl Error for SerialError {
     fn kind(&self) -> ErrorKind {
-        self.kind
+        match self {
+            Self::BufferFull => ErrorKind::OutOfMemory,
+            Self::NotImplemented => ErrorKind::Unsupported
+        }
     }
 }
 
 impl uDisplay for SerialError {
     fn fmt<W>(&self, fmt: &mut ufmt::Formatter<'_, W>) -> Result<(), W::Error> where W: ufmt::uWrite + ?Sized {
-        match self.kind {
-            ErrorKind::InvalidData => ufmt::uwrite!(fmt, "Invalid data"),
-            ErrorKind::BrokenPipe => ufmt::uwrite!(fmt, "Broken pipe"),
-            ErrorKind::TimedOut => ufmt::uwrite!(fmt, "Timed out"),
-            ErrorKind::NotConnected => ufmt::uwrite!(fmt, "Not connected"),
-            _ => ufmt::uwrite!(fmt, "Unknown error"),
+        match self {
+            SerialError::BufferFull => ufmt::uwrite!(fmt, "Buffer full"),
+            SerialError::NotImplemented => ufmt::uwrite!(fmt, "Not implemented"),
         }
     }
 }

@@ -6,4 +6,4 @@ open-console = true
 serial-baudrate = 57600
 
 # The serial port to use. If not set, ravedude will try to find the port automatically.
-#port = "/dev/ttyACM0"
+port = "/dev/ttyACM0"

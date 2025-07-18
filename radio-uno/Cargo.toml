@@ -10,12 +10,7 @@ test = false
 bench = false
 
 [[bin]]
-name = "radio-uno"
-test = false
-bench = false
-
-[[bin]]
-name = "monitor"
+name = "serial_test"
 test = false
 bench = false
 

@@ -2,9 +2,9 @@ use arduino_hal::{
     clock::Clock,
     pac::TC2,
     port::{
-        Pin,
         mode::Output,
-    },
+        Pin,
+    }, usart::{UsartOps, UsartWriter},
 };
 use embedded_hal::digital::OutputPin;
 use embedded_io::{
@@ -12,25 +12,16 @@ use embedded_io::{
     Write,
     WriteReady,
 };
-use core::mem::MaybeUninit;
-use ufmt::uWrite;
+use core::{
+    mem::MaybeUninit,
+    ops::RangeInclusive,
+};
+use ufmt::{derive::uDebug, uWrite};
 use crate::error::SerialError;
 
 /// A software serial implementation that uses two GPIO pins for RX and TX.
 /// High level (1) on TX is idle.
 /// Start bit is 0, then 8 data bits, then stop bit (1)
-
-// 16e6 ticks   1 increments   1 overflow
-// ---------- x ------------ x --------------
-// 1s           X tick         256 increments
-
-const PRESCALE_1_MIN_HZ: u32 = arduino_hal::DefaultClock::FREQ / 1 / 256;
-const PRESCALE_8_MIN_HZ: u32 = arduino_hal::DefaultClock::FREQ / 8 / 256;
-const PRESCALE_32_MIN_HZ: u32 = arduino_hal::DefaultClock::FREQ / 32 / 256;
-const PRESCALE_64_MIN_HZ: u32 = arduino_hal::DefaultClock::FREQ / 64 / 256;
-const PRESCALE_128_MIN_HZ: u32 = arduino_hal::DefaultClock::FREQ / 128 / 256;
-const PRESCALE_256_MIN_HZ: u32 = arduino_hal::DefaultClock::FREQ / 256 / 256;
-const PRESCALE_1024_MIN_HZ: u32 = arduino_hal::DefaultClock::FREQ / 1024 / 256;
 
 struct InterruptState {
     pin: Pin<Output>,
@@ -40,18 +31,20 @@ struct InterruptState {
 static mut INTERRUPT_STATE: MaybeUninit<InterruptState> = MaybeUninit::uninit();
 
 #[avr_device::interrupt(atmega328p)]
-fn TIMER2_COMPA() {
-    let state = unsafe {
-        #[allow(static_mut_refs)]
-        &mut *INTERRUPT_STATE.as_mut_ptr()
-    };
+unsafe fn TIMER2_COMPA() {
+    avr_device::interrupt::CriticalSection::new();
+
+    #[allow(static_mut_refs)]
+    let state = &mut *INTERRUPT_STATE.as_mut_ptr();
+
     if let Some(next_bit) = state.next_bit.take() {
         // write next bit to pin
         state.pin.set_state(next_bit.into()).unwrap();
     }
 }
 
-enum WriterState {
+#[derive(uDebug)]
+pub enum WriterState {
     Idle,
     Start,
     Data(u8),
@@ -68,55 +61,22 @@ pub struct SerialWriter<const B: usize> {
 }
 
 impl<const B: usize> SerialWriter<B> {
-    pub fn new(pin: Pin<Output>, clock: TC2, baud: u32) -> Option<Self> {
-        // timer/counter control register 2
+    pub fn new(pin: Pin<Output>, mut clock: TC2, baud: u32) -> Result<Self, &'static str> {
+        // set timer to "clear timer on compare match" (CTC) mode
         clock.tccr2a.write(|w| w.wgm2().ctc());
 
-        let preload =
-        if baud < PRESCALE_1_MIN_HZ {
-            // set clock prescaler to 1:1
-            clock.tccr2b.write(|w| w.cs2().direct());
-            Self::preload(baud, 1)
-        }
-        else if baud < PRESCALE_8_MIN_HZ {
-            clock.tccr2b.write(|w| w.cs2().prescale_8());
-            Self::preload(baud, 8)
-        }
-        else if baud < PRESCALE_32_MIN_HZ {
-            clock.tccr2b.write(|w| w.cs2().prescale_32());
-            Self::preload(baud, 32)
-        }
-        else if baud < PRESCALE_64_MIN_HZ {
-            clock.tccr2b.write(|w| w.cs2().prescale_64());
-            Self::preload(baud, 64)
-        }
-        else if baud < PRESCALE_128_MIN_HZ {
-            clock.tccr2b.write(|w| w.cs2().prescale_128());
-            Self::preload(baud, 128)
-        }
-        else if baud < PRESCALE_256_MIN_HZ {
-            clock.tccr2b.write(|w| w.cs2().prescale_256());
-            Self::preload(baud, 256)
-        }
-        else if baud < PRESCALE_1024_MIN_HZ {
-            clock.tccr2b.write(|w| w.cs2().prescale_1024());
-            Self::preload(baud, 1024)
-        }
-        else {
-            return None;
-        };
-
-        // set output compare register A to preload value
-        clock.ocr2a.write(|w| w.bits(preload));
+        let prescale = Self::calc_prescale(baud, &mut clock)?;
+        Self::calc_compare(baud, prescale, &mut clock);
 
         unsafe {
             INTERRUPT_STATE = MaybeUninit::new(InterruptState {
                 pin: pin,
                 next_bit: None,
             });
+            core::sync::atomic::compiler_fence(core::sync::atomic::Ordering::SeqCst);
         }
 
-        Some(Self {
+        Ok(Self {
             clock,
             head: 0,
             tail: 0,
@@ -126,11 +86,14 @@ impl<const B: usize> SerialWriter<B> {
         })
     }
 
-    pub fn process(&mut self) {
+    pub fn process<T>(&mut self, serial: &mut T) -> Result<(), T::Error> where T: ufmt::uWrite {
         if self.size == 0 {
             // disable overflow clock interrupt
             self.clock.timsk2.write(|w| w.ocie2a().clear_bit());
-            return;
+            return Ok(());
+        }
+        else {
+            self.clock.timsk2.write(|w| w.ocie2a().set_bit());
         }
 
         let int_state = unsafe {
@@ -139,17 +102,76 @@ impl<const B: usize> SerialWriter<B> {
         };
 
         if int_state.next_bit.is_none() {
-            int_state.next_bit = self.next_bit();
+            //ufmt::uwriteln!(serial, "Sending next bit...")?;
+            int_state.next_bit = self.send_next_bit();
+        }
+
+        Ok(())
+    }
+
+    pub fn debug<T>(&self, serial: &mut T) -> Result<(), T::Error> where T: ufmt::uWrite {
+        ufmt::uwriteln!(serial,
+            "SerialWriter: head={}, tail={}, size={}, next_send={:?}",
+            self.head, self.tail, self.size, self.next_send)
+    }
+
+    fn calc_prescale(baud: u32, clock: &mut TC2) -> Result<u32, &'static str> {
+        const NATIVE_TICK_S: f32 = 1f32 / arduino_hal::DefaultClock::FREQ as f32;
+        const PRESCALE_1: RangeInclusive<f32>    = NATIVE_TICK_S * 1.0    ..= NATIVE_TICK_S * 1.0 * 256.0;
+        const PRESCALE_8: RangeInclusive<f32>    = NATIVE_TICK_S * 8.0    ..= NATIVE_TICK_S * 8.0 * 256.0;
+        const PRESCALE_32: RangeInclusive<f32>   = NATIVE_TICK_S * 32.0   ..= NATIVE_TICK_S * 32.0 * 256.0;
+        const PRESCALE_64: RangeInclusive<f32>   = NATIVE_TICK_S * 64.0   ..= NATIVE_TICK_S * 64.0 * 256.0;
+        const PRESCALE_128: RangeInclusive<f32>  = NATIVE_TICK_S * 128.0  ..= NATIVE_TICK_S * 128.0 * 256.0;
+        const PRESCALE_256: RangeInclusive<f32>  = NATIVE_TICK_S * 256.0  ..= NATIVE_TICK_S * 256.0 * 256.0;
+        const PRESCALE_1024: RangeInclusive<f32> = NATIVE_TICK_S * 1024.0 ..= NATIVE_TICK_S * 1024.0 * 256.0;
+
+        let freq_s = 1.0 / baud as f32;
+        if PRESCALE_1.contains(&freq_s) {
+            // set clock prescaler to 1:1
+            clock.tccr2b.write(|w| w.cs2().direct());
+            Ok(1)
+        }
+        else if PRESCALE_8.contains(&freq_s) {
+            clock.tccr2b.write(|w| w.cs2().prescale_8());
+            Ok(8)
+        }
+        else if PRESCALE_32.contains(&freq_s) {
+            clock.tccr2b.write(|w| w.cs2().prescale_32());
+            Ok(32)
+        }
+        else if PRESCALE_64.contains(&freq_s) {
+            clock.tccr2b.write(|w| w.cs2().prescale_64());
+            Ok(64)
+        }
+        else if PRESCALE_128.contains(&freq_s) {
+            clock.tccr2b.write(|w| w.cs2().prescale_128());
+            Ok(128)
+        }
+        else if PRESCALE_256.contains(&freq_s) {
+            clock.tccr2b.write(|w| w.cs2().prescale_256());
+            Ok(256)
+        }
+        else if PRESCALE_1024.contains(&freq_s) {
+            clock.tccr2b.write(|w| w.cs2().prescale_1024());
+            Ok(1024)
+        }
+        else {
+            Err("Frequency too low/high for software serial")
         }
     }
 
-    fn preload(baud: u32, prescale: u32) -> u8 {
-        ((arduino_hal::DefaultClock::FREQ as f32) / (baud as f32) / (prescale as f32)) as u8 - 1
+    fn calc_compare(baud: u32, prescale: u32, clock: &mut TC2) -> u8 {
+        let compare = (arduino_hal::DefaultClock::FREQ / baud / prescale - 1) as u8;
+        clock.ocr2a.write(|w| w.bits(compare));
+        compare
     }
 
-    fn next_bit(&mut self) -> Option<bool> {
+    fn send_next_bit(&mut self) -> Option<bool> {
         match self.next_send {
             WriterState::Idle => {
+                if self.size > 0 {
+                    self.next_send = WriterState::Start;
+                }
                 None
             },
             WriterState::Start => {
@@ -158,10 +180,10 @@ impl<const B: usize> SerialWriter<B> {
             },
             WriterState::Data(bit) => {
                 self.next_send = if bit < 7 { WriterState::Data(bit + 1) } else { WriterState::Stop };
-                Some(self.buf[self.head] & (1 << (7 - bit)) != 0)
+                Some((self.buf[self.head] & (1 << (7 - bit))) != 0)
             },
             WriterState::Stop => {
-                self.head += 1;
+                self.head = (self.head + 1) % B;
                 self.size -= 1;
                 self.next_send = if self.size > 0 { WriterState::Start } else { WriterState::Idle };
                 Some(true)
@@ -184,15 +206,6 @@ impl<const B: usize> Write for SerialWriter<B> {
             self.buf[self.tail] = *byte;
             self.tail = (self.tail + 1) % B;
             self.size += 1;
-        }
-
-        // enable overflow clock interrupt
-        if self.size > 1 {
-            if let WriterState::Idle = self.next_send {
-                // if we are idle, start with the start bit
-                self.next_send = WriterState::Start;
-            }
-            self.clock.timsk2.write(|w| w.ocie2a().set_bit());
         }
 
         Ok(buf.len())
